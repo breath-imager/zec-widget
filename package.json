@@ -1,4 +1,13 @@
 {
   "name": "zec-widget",
-  "packageManager": "yarn@4.1.1"
+  "packageManager": "yarn@4.1.1",
+  "devDependencies": {
+    "electron": "^39.2.7"
+  },
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+
 }
