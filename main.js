@@ -3,11 +3,17 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 
 // Enable Yarn PnP for other dependencies (cheerio, etc.)
+// In production builds, PnP might not be available, so handle gracefully
 try {
-  require('./.pnp.cjs').setup()
+  const pnpPath = require('path').join(__dirname, '.pnp.cjs')
+  if (require('fs').existsSync(pnpPath)) {
+    require(pnpPath).setup()
+  }
 } catch (e) {
-  // PnP not available, continue without it
-  console.warn('Yarn PnP not available:', e.message)
+  // PnP not available, continue without it (normal in packaged apps)
+  if (!app.isPackaged) {
+    console.warn('Yarn PnP not available:', e.message)
+  }
 }
 const path = require('node:path')
 const https = require('node:https')
@@ -22,10 +28,18 @@ const createWindow = () => {
     transparent: false,
     backgroundColor: '#000000',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true
     }
   })
-  mainWindow.loadFile('index.html')
+  
+  // Load index.html - handle both development and production paths
+  if (app.isPackaged) {
+    mainWindow.loadFile(path.join(__dirname, 'index.html'))
+  } else {
+    mainWindow.loadFile('index.html')
+  }
 }
 
 let lastChartFetch = 0
@@ -257,7 +271,20 @@ function fetchZecPrice() {
   })
 }
 
+// Set app to launch at login (startup)
+function setAutoLaunch(enabled) {
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    openAsHidden: false,
+    name: 'ZEC Widget'
+  })
+}
+
+// Enable auto-launch by default
 app.whenReady().then(() => {
+  // Set auto-launch on startup
+  setAutoLaunch(true)
+  
   // IPC handler for manual price fetch
   ipcMain.handle('fetch-price', async () => {
     return await fetchZecPrice()
@@ -289,6 +316,17 @@ app.whenReady().then(() => {
     return null
   })
   
+  // IPC handler to get/set auto-launch
+  ipcMain.handle('get-auto-launch', async () => {
+    const loginItemSettings = app.getLoginItemSettings()
+    return loginItemSettings.openAtLogin
+  })
+  
+  ipcMain.handle('set-auto-launch', async (event, enabled) => {
+    setAutoLaunch(enabled)
+    return enabled
+  })
+  
   createWindow()
   
   // Fetch price immediately
@@ -296,4 +334,18 @@ app.whenReady().then(() => {
   
   // Set up auto-refresh every 30 seconds
   setInterval(fetchZecPrice, 60000)
+})
+
+// Handle app activation (macOS)
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow()
+  }
+})
+
+// Quit when all windows are closed (except on macOS)
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
 })
