@@ -177,8 +177,9 @@ window.electronAPI.onPriceUpdate((priceData) => {
     // Update change badge for selected period
     updateChangeBadge()
     
-    // Update chart if history data is available
-    if (priceData.history && priceData.history.length > 0) {
+    // Update chart if history data is available and period is 1D (default from API)
+    // For other periods, chart will be updated when period changes via fetchChartData
+    if (priceData.history && priceData.history.length > 0 && selectedPeriod === '1D') {
       priceHistory = priceData.history.map(([timestamp, price]) => ({
         time: timestamp,
         price: price
@@ -324,12 +325,25 @@ const WIDTH_WITHOUT_CHART = 400
 const HEIGHT_WITHOUT_CHART = 180 // Approximate height without chart
 
 // Handle chart toggle change
-chartToggle.addEventListener('change', (e) => {
+chartToggle.addEventListener('change', async (e) => {
   const showChart = e.target.checked
   
   if (showChart) {
     chartContainer.classList.remove('hidden')
     window.electronAPI.resizeWindow(WIDTH_WITH_CHART, HEIGHT_WITH_CHART)
+    // Fetch chart data for current period when chart is enabled
+    try {
+      const chartData = await window.electronAPI.fetchChartData(selectedPeriod)
+      if (chartData && !chartData.error && chartData.history) {
+        priceHistory = chartData.history.map(([timestamp, price]) => ({
+          time: timestamp,
+          price: price
+        }))
+        drawChart()
+      }
+    } catch (error) {
+      console.error('Error fetching chart data:', error)
+    }
   } else {
     chartContainer.classList.add('hidden')
     window.electronAPI.resizeWindow(WIDTH_WITHOUT_CHART, HEIGHT_WITHOUT_CHART)
@@ -338,11 +352,38 @@ chartToggle.addEventListener('change', (e) => {
 
 // Handle change badge click - cycle through time periods
 const changeBadge = document.getElementById('change-badge')
-changeBadge.addEventListener('click', () => {
+changeBadge.addEventListener('click', async () => {
   const currentIndex = timePeriods.indexOf(selectedPeriod)
   const nextIndex = (currentIndex + 1) % timePeriods.length
   selectedPeriod = timePeriods[nextIndex]
   updateChangeBadge()
+  
+  // Fetch and update chart data for the new period
+  if (document.getElementById('chart-toggle').checked) {
+    try {
+      const chartData = await window.electronAPI.fetchChartData(selectedPeriod)
+      if (chartData && !chartData.error && chartData.history) {
+        priceHistory = chartData.history.map(([timestamp, price]) => ({
+          time: timestamp,
+          price: price
+        }))
+        drawChart()
+      }
+    } catch (error) {
+      console.error('Error fetching chart data:', error)
+    }
+  }
+})
+
+// Listen for chart data updates from main process
+window.electronAPI.onChartDataUpdate((chartData) => {
+  if (chartData && !chartData.error && chartData.history) {
+    priceHistory = chartData.history.map(([timestamp, price]) => ({
+      time: timestamp,
+      price: price
+    }))
+    drawChart()
+  }
 })
 
 // Handle pin to top checkbox

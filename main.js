@@ -271,6 +271,71 @@ function fetchZecPrice() {
   })
 }
 
+// Fetch chart data for a specific time period
+function fetchChartDataForPeriod(period) {
+  return new Promise((resolve, reject) => {
+    let interval, limit
+    
+    switch (period) {
+      case '1H':
+        interval = '1m'
+        limit = 60 // 60 minutes = 1 hour
+        break
+      case '4H':
+        interval = '5m'
+        limit = 48 // 48 * 5min = 240min = 4 hours
+        break
+      case '1D':
+        interval = '1h'
+        limit = 24 // 24 hours
+        break
+      case '1W':
+        interval = '1d'
+        limit = 7 // 7 days
+        break
+      default:
+        interval = '1h'
+        limit = 24
+    }
+    
+    const chartUrl = `https://api.binance.com/api/v3/klines?symbol=ZECUSDT&interval=${interval}&limit=${limit}`
+    
+    https.get(chartUrl, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`API returned status ${response.statusCode}`))
+        return
+      }
+      
+      let data = ''
+      
+      response.on('data', (chunk) => {
+        data += chunk
+      })
+      
+      response.on('end', () => {
+        try {
+          const chartJson = JSON.parse(data)
+          // Convert to [timestamp, price] format
+          const history = chartJson.map(kline => [
+            kline[0], // timestamp in ms
+            parseFloat(kline[4]) // close price
+          ])
+          
+          resolve({
+            history: history,
+            historicalData: chartJson,
+            period: period
+          })
+        } catch (error) {
+          reject(error)
+        }
+      })
+    }).on('error', (error) => {
+      reject(error)
+    })
+  })
+}
+
 // Set app to launch at login (startup)
 function setAutoLaunch(enabled) {
   app.setLoginItemSettings({
@@ -288,6 +353,21 @@ app.whenReady().then(() => {
   // IPC handler for manual price fetch
   ipcMain.handle('fetch-price', async () => {
     return await fetchZecPrice()
+  })
+  
+  // IPC handler for fetching chart data for a specific period
+  ipcMain.handle('fetch-chart-data', async (event, period) => {
+    try {
+      const chartData = await fetchChartDataForPeriod(period)
+      // Send chart data update to renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('chart-data-update', chartData)
+      }
+      return chartData
+    } catch (error) {
+      console.error('Error fetching chart data:', error)
+      return { error: error.message }
+    }
   })
   
   // IPC handler for always-on-top
