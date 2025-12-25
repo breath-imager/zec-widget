@@ -6,8 +6,11 @@
   },
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "NODE_OPTIONS='--no-deprecation' electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "node-fetch": "^3.3.2"
   }
-
 }
