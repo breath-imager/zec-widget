@@ -1,16 +1,52 @@
 {
   "name": "zec-widget",
+  "version": "1.0.0",
+  "description": "ZEC Price Widget",
+  "author": "cyberglobacore",
   "packageManager": "yarn@4.1.1",
-  "devDependencies": {
-    "electron": "^39.2.7"
-  },
   "main": "main.js",
   "scripts": {
     "start": "NODE_OPTIONS='--no-deprecation --require ./.pnp.cjs' electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "dist": "electron-builder --publish=never",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "39.2.7",
+    "electron-builder": "^24.9.1"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
     "node-fetch": "^3.3.2"
+  },
+  "build": {
+    "appId": "com.cyberglobacore.zecwidget",
+    "productName": "ZEC Widget",
+    "electronVersion": "39.2.7",
+    "mac": {
+      "category": "public.app-category.finance",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "styles.css",
+      "renderer.js",
+      "package.json"
+    ],
+    "extraResources": [],
+    "asar": false,
+    "nodeGypRebuild": false,
+    "npmRebuild": false
   }
 }
