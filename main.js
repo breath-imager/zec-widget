@@ -43,9 +43,12 @@ const createWindow = () => {
 }
 
 let lastChartFetch = 0
-const CHART_FETCH_INTERVAL = 60000 // Fetch chart data every 30 seconds
+const CHART_FETCH_INTERVAL = 30000 // Fetch chart data every 30 seconds
+const PRICE_FETCH_INTERVAL = 1000 // Fetch price every 1 second (60 req/min, well within 1200/min limit)
 let lastPriceHistory = []
 let lastPriceData = null
+let consecutiveRateLimitErrors = 0
+let isRateLimited = false
 
 // Fetch ZEC price and market data from Binance API
 function fetchZecPrice() {
@@ -56,15 +59,18 @@ function fetchZecPrice() {
     const request = https.get(priceUrl, (response) => {
       // Check for rate limiting or errors
       if (response.statusCode === 429) {
-        console.warn('Rate limited by Binance API, using cached data')
+        consecutiveRateLimitErrors++
+        isRateLimited = true
+        console.warn(`Rate limited by Binance API (${consecutiveRateLimitErrors} consecutive), using cached data`)
+        
         // Use last known price if available
-        if (lastPriceHistory.length > 0) {
-          const lastPrice = lastPriceHistory[lastPriceHistory.length - 1]
+        if (lastPriceData) {
           const priceData = {
-            price: lastPrice.price,
-            change24h: 0,
+            price: lastPriceData.price,
+            change24h: lastPriceData.change24h || 0,
             timestamp: new Date().toISOString(),
-            history: lastPriceHistory
+            history: lastPriceHistory,
+            historicalData: lastPriceData.historicalData || null
           }
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('price-update', priceData)
@@ -74,6 +80,12 @@ function fetchZecPrice() {
         }
         reject(new Error('Rate limited and no cached data available'))
         return
+      }
+      
+      // Reset rate limit counter on successful request
+      if (response.statusCode === 200) {
+        consecutiveRateLimitErrors = 0
+        isRateLimited = false
       }
       
       if (response.statusCode !== 200) {
@@ -412,8 +424,10 @@ app.whenReady().then(() => {
   // Fetch price immediately
   fetchZecPrice()
   
-  // Set up auto-refresh every 30 seconds
-  setInterval(fetchZecPrice, 60000)
+  // Set up auto-refresh every 1 second for price updates
+  // Binance allows 1200 requests/minute, so 1 req/sec (60/min) is well within limits
+  // Rate limit handling will use cached data if we hit limits
+  setInterval(fetchZecPrice, PRICE_FETCH_INTERVAL)
 })
 
 // Handle app activation (macOS)
