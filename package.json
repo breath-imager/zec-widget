@@ -6,7 +6,7 @@
   },
   "main": "main.js",
   "scripts": {
-    "start": "NODE_OPTIONS='--no-deprecation' electron .",
+    "start": "NODE_OPTIONS='--no-deprecation --require ./.pnp.cjs' electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
