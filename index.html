@@ -18,10 +18,8 @@
       <div class="header-top">
         <div class="ticker">ZEC</div>
         <div class="controls">
-          <label class="toggle-switch">
-            <input type="checkbox" id="chart-toggle" checked />
-            <span class="toggle-label">Chart</span>
-          </label>
+          <button id="test-triumph" class="test-sound-button">🎵</button>
+          <button id="test-buzzer" class="test-sound-button">🔊</button>
           <label class="pin-checkbox">
             <input type="checkbox" id="pin-checkbox" />
             <span class="pin-label">Pin to top</span>
@@ -29,22 +27,17 @@
         </div>
       </div>
       <div class="price-container">
-        <div class="price" id="price">$0.00</div>
+        <div class="price-wrapper">
+          <div class="price" id="price">
+            <span class="price-symbol">$</span>
+            <span class="price-dollars" id="price-dollars">0</span>
+            <span class="price-decimal">.</span>
+            <span class="price-cents" id="price-cents">00</span>
+          </div>
+        </div>
         <button class="change-badge" id="change-badge">0.00% D</button>
       </div>
     </div>
-    
-    <div class="chart-container" id="chart-container">
-      <div class="chart" id="chart">
-        <svg class="chart-svg" id="chart-svg"></svg>
-      </div>
-      <div class="tooltip" id="tooltip">
-        <div class="tooltip-time" id="tooltip-time"></div>
-        <div class="tooltip-price" id="tooltip-price"></div>
-      </div>
-    </div>
-    
-   
     
     <script src="./renderer.js"></script>
   </body>

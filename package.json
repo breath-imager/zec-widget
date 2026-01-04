@@ -42,7 +42,9 @@
       "index.html",
       "styles.css",
       "renderer.js",
-      "package.json"
+      "package.json",
+      "priceisright-fail.wav",
+      "mario-win.wav"
     ],
     "extraResources": [],
     "asar": false,

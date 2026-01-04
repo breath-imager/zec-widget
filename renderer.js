@@ -1,5 +1,5 @@
-let priceHistory = []
 let currentPrice = 0
+let previousPrice = 0
 let currentPriceData = null
 let selectedPeriod = '1D' // 1H, 4H, 1D, 1W
 let lastHundredLevel = null // Track the last hundred level (e.g., 4 for $400s, 5 for $500s)
@@ -88,52 +88,22 @@ function updateChangeBadge() {
   changeBadge.classList.toggle('negative', change < 0)
 }
 
-// Generate and play triumph sound (ascending notes)
+// Play Mario win sound from audio file
 function playTriumphSound() {
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-  const notes = [523.25, 659.25, 783.99] // C5, E5, G5 - major chord
-  let noteIndex = 0
-  
-  function playNote(frequency, startTime) {
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-    
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-    
-    oscillator.frequency.value = frequency
-    oscillator.type = 'sine'
-    
-    gainNode.gain.setValueAtTime(0.3, startTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3)
-    
-    oscillator.start(startTime)
-    oscillator.stop(startTime + 0.3)
-  }
-  
-  notes.forEach((note, index) => {
-    playNote(note, audioContext.currentTime + index * 0.15)
+  const audio = new Audio('mario-win.wav')
+  audio.volume = 0.7
+  audio.play().catch(error => {
+    console.error('Error playing triumph sound:', error)
   })
 }
 
-// Generate and play wrong buzzer sound (descending harsh tone)
+// Play Price is Right fail sound from audio file
 function playBuzzerSound() {
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-  const oscillator = audioContext.createOscillator()
-  const gainNode = audioContext.createGain()
-  
-  oscillator.connect(gainNode)
-  gainNode.connect(audioContext.destination)
-  
-  oscillator.type = 'sawtooth'
-  oscillator.frequency.setValueAtTime(200, audioContext.currentTime)
-  oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.5)
-  
-  gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
-  
-  oscillator.start(audioContext.currentTime)
-  oscillator.stop(audioContext.currentTime + 0.5)
+  const audio = new Audio('priceisright-fail.wav')
+  audio.volume = 0.7
+  audio.play().catch(error => {
+    console.error('Error playing buzzer sound:', error)
+  })
 }
 
 // Check if price crossed a hundred threshold and play appropriate sound
@@ -161,133 +131,92 @@ function checkHundredThreshold(newPrice) {
 // Set up price update listener
 window.electronAPI.onPriceUpdate((priceData) => {
   if (priceData.error) {
-    document.getElementById('price').textContent = `Error: ${priceData.error}`
+    document.getElementById('price-dollars').textContent = 'Error'
+    document.getElementById('price-cents').textContent = ''
     document.getElementById('change-badge').textContent = '--'
+    previousPrice = 0 // Reset on error
   } else {
-    const previousPrice = currentPrice
-    currentPrice = priceData.price
-    currentPriceData = priceData
-    document.getElementById('price').textContent = `$${priceData.price.toFixed(2)}`
+    const newPrice = priceData.price
+    const dollarsElement = document.getElementById('price-dollars')
+    const centsElement = document.getElementById('price-cents')
     
-    // Check for hundred threshold crossings and play sounds
-    if (previousPrice !== priceData.price) {
-      checkHundredThreshold(priceData.price)
+    // Animate price change if it changed
+    if (previousPrice > 0 && newPrice !== previousPrice) {
+      // Parse old and new prices
+      const oldFormatted = previousPrice.toFixed(2)
+      const newFormatted = newPrice.toFixed(2)
+      
+      const oldParts = oldFormatted.split('.')
+      const newParts = newFormatted.split('.')
+      const oldDollars = oldParts[0]
+      const oldCents = oldParts[1]
+      const newDollars = newParts[0]
+      const newCents = newParts[1]
+      
+      // Determine animation direction
+      const isUp = newPrice > previousPrice
+      const animationClass = isUp ? 'animate-up' : 'animate-down'
+      
+      // Animate dollars if they changed
+      if (oldDollars !== newDollars) {
+        dollarsElement.classList.remove('animate-up', 'animate-down')
+        void dollarsElement.offsetWidth // Force reflow
+        dollarsElement.textContent = newDollars
+        dollarsElement.classList.add(animationClass)
+        setTimeout(() => {
+          dollarsElement.classList.remove('animate-up', 'animate-down')
+          dollarsElement.style.color = '#ffffff'
+        }, 600)
+      } else {
+        dollarsElement.textContent = newDollars
+      }
+      
+      // Animate cents if they changed
+      if (oldCents !== newCents) {
+        centsElement.classList.remove('animate-up', 'animate-down')
+        void centsElement.offsetWidth // Force reflow
+        centsElement.textContent = newCents
+        centsElement.classList.add(animationClass)
+        setTimeout(() => {
+          centsElement.classList.remove('animate-up', 'animate-down')
+          centsElement.style.color = '#ffffff'
+        }, 600)
+      } else {
+        centsElement.textContent = newCents
+      }
+      
+      // Check for hundred threshold crossings and play sounds
+      checkHundredThreshold(newPrice)
+    } else {
+      // First load or no change - just update text
+      const formatted = newPrice.toFixed(2)
+      const parts = formatted.split('.')
+      dollarsElement.textContent = parts[0]
+      centsElement.textContent = parts[1]
     }
+    
+    previousPrice = newPrice
+    currentPrice = newPrice
+    currentPriceData = priceData
     
     // Update change badge for selected period
     updateChangeBadge()
-    
-    // Update chart if history data is available and period is 1D (default from API)
-    // For other periods, chart will be updated when period changes via fetchChartData
-    if (priceData.history && priceData.history.length > 0 && selectedPeriod === '1D') {
-      priceHistory = priceData.history.map(([timestamp, price]) => ({
-        time: timestamp,
-        price: price
-      }))
-      drawChart()
-    }
   }
 })
 
-// Draw the price chart
-function drawChart() {
-  if (priceHistory.length === 0) return
-  
-  const svg = document.getElementById('chart-svg')
-  const container = document.getElementById('chart')
-  const width = container.clientWidth
-  const height = container.clientHeight
-  
-  svg.setAttribute('width', width)
-  svg.setAttribute('height', height)
-  
-  // Clear previous chart
-  svg.innerHTML = ''
-  
-  // Calculate min/max for scaling
-  const prices = priceHistory.map(d => d.price)
-  const minPrice = Math.min(...prices)
-  const maxPrice = Math.max(...prices)
-  const priceRange = maxPrice - minPrice || 1
-  
-  // Padding for the chart
-  const padding = { top: 10, right: 10, bottom: 10, left: 10 }
-  const chartWidth = width - padding.left - padding.right
-  const chartHeight = height - padding.top - padding.bottom
-  
-  // Create path for the line
-  let pathData = ''
-  let areaPathData = ''
-  
-  priceHistory.forEach((point, index) => {
-    const x = padding.left + (index / (priceHistory.length - 1)) * chartWidth
-    const y = padding.top + chartHeight - ((point.price - minPrice) / priceRange) * chartHeight
-    
-    if (index === 0) {
-      pathData += `M ${x} ${y}`
-      areaPathData = `M ${x} ${padding.top + chartHeight} L ${x} ${y} `
-    } else {
-      pathData += ` L ${x} ${y}`
-      areaPathData += `L ${x} ${y} `
-    }
-    
-    if (index === priceHistory.length - 1) {
-      areaPathData += `L ${x} ${padding.top + chartHeight} Z`
-    }
-  })
-  
-  // Draw area under the line
-  const areaPath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-  areaPath.setAttribute('d', areaPathData)
-  areaPath.setAttribute('class', 'chart-area')
-  svg.appendChild(areaPath)
-  
-  // Draw the line
-  const linePath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-  linePath.setAttribute('d', pathData)
-  linePath.setAttribute('class', 'chart-line')
-  svg.appendChild(linePath)
-  
-  // Add mouse move handler for tooltip
-  svg.addEventListener('mousemove', (e) => {
-    const rect = svg.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const index = Math.round(((x - padding.left) / chartWidth) * (priceHistory.length - 1))
-    const clampedIndex = Math.max(0, Math.min(index, priceHistory.length - 1))
-    const point = priceHistory[clampedIndex]
-    
-    if (point) {
-      const tooltip = document.getElementById('tooltip')
-      const tooltipTime = document.getElementById('tooltip-time')
-      const tooltipPrice = document.getElementById('tooltip-price')
-      
-      const date = new Date(point.time)
-      const time = date.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
-      })
-      
-      tooltipTime.textContent = time
-      tooltipPrice.textContent = `$${point.price.toFixed(2)}`
-      
-      tooltip.style.left = `${x}px`
-      tooltip.style.top = `${e.clientY - rect.top - 40}px`
-      tooltip.classList.add('visible')
-    }
-  })
-  
-  svg.addEventListener('mouseleave', () => {
-    document.getElementById('tooltip').classList.remove('visible')
-  })
-}
 
 // Fetch initial price
 window.electronAPI.fetchPrice().then((priceData) => {
   if (priceData && !priceData.error) {
     currentPrice = priceData.price
+    previousPrice = priceData.price // Set initial previous price
     currentPriceData = priceData
-    document.getElementById('price').textContent = `$${priceData.price.toFixed(2)}`
+    
+    // Set initial price display
+    const formatted = priceData.price.toFixed(2)
+    const parts = formatted.split('.')
+    document.getElementById('price-dollars').textContent = parts[0]
+    document.getElementById('price-cents').textContent = parts[1]
     
     // Initialize the hundred level (don't play sound on initial load)
     if (lastHundredLevel === null) {
@@ -296,59 +225,9 @@ window.electronAPI.fetchPrice().then((priceData) => {
     
     // Update change badge for selected period
     updateChangeBadge()
-    
-    if (priceData.history && priceData.history.length > 0) {
-      priceHistory = priceData.history.map(([timestamp, price]) => ({
-        time: timestamp,
-        price: price
-      }))
-      drawChart()
-    }
   }
 })
 
-// Handle window resize
-window.addEventListener('resize', () => {
-  if (priceHistory.length > 0) {
-    drawChart()
-  }
-})
-
-// Handle chart toggle
-const chartToggle = document.getElementById('chart-toggle')
-const chartContainer = document.getElementById('chart-container')
-
-// Window dimensions
-const WIDTH_WITH_CHART = 400
-const HEIGHT_WITH_CHART = 500
-const WIDTH_WITHOUT_CHART = 400
-const HEIGHT_WITHOUT_CHART = 180 // Approximate height without chart
-
-// Handle chart toggle change
-chartToggle.addEventListener('change', async (e) => {
-  const showChart = e.target.checked
-  
-  if (showChart) {
-    chartContainer.classList.remove('hidden')
-    window.electronAPI.resizeWindow(WIDTH_WITH_CHART, HEIGHT_WITH_CHART)
-    // Fetch chart data for current period when chart is enabled
-    try {
-      const chartData = await window.electronAPI.fetchChartData(selectedPeriod)
-      if (chartData && !chartData.error && chartData.history) {
-        priceHistory = chartData.history.map(([timestamp, price]) => ({
-          time: timestamp,
-          price: price
-        }))
-        drawChart()
-      }
-    } catch (error) {
-      console.error('Error fetching chart data:', error)
-    }
-  } else {
-    chartContainer.classList.add('hidden')
-    window.electronAPI.resizeWindow(WIDTH_WITHOUT_CHART, HEIGHT_WITHOUT_CHART)
-  }
-})
 
 // Handle change badge click - cycle through time periods
 const changeBadge = document.getElementById('change-badge')
@@ -358,33 +237,35 @@ changeBadge.addEventListener('click', async () => {
   selectedPeriod = timePeriods[nextIndex]
   updateChangeBadge()
   
-  // Fetch and update chart data for the new period
-  if (document.getElementById('chart-toggle').checked) {
-    try {
-      const chartData = await window.electronAPI.fetchChartData(selectedPeriod)
-      if (chartData && !chartData.error && chartData.history) {
-        priceHistory = chartData.history.map(([timestamp, price]) => ({
-          time: timestamp,
-          price: price
-        }))
-        drawChart()
-      }
-    } catch (error) {
-      console.error('Error fetching chart data:', error)
+  // Fetch chart data for the new period to update the change calculation
+  try {
+    const chartData = await window.electronAPI.fetchChartData(selectedPeriod)
+    if (chartData && !chartData.error && currentPriceData) {
+      // Update currentPriceData with new historical data for period calculation
+      currentPriceData.historicalData = chartData.historicalData
+      updateChangeBadge()
     }
+  } catch (error) {
+    console.error('Error fetching chart data:', error)
   }
 })
 
-// Listen for chart data updates from main process
-window.electronAPI.onChartDataUpdate((chartData) => {
-  if (chartData && !chartData.error && chartData.history) {
-    priceHistory = chartData.history.map(([timestamp, price]) => ({
-      time: timestamp,
-      price: price
-    }))
-    drawChart()
-  }
-})
+
+// Handle sound test buttons
+const testTriumphBtn = document.getElementById('test-triumph')
+const testBuzzerBtn = document.getElementById('test-buzzer')
+
+if (testTriumphBtn) {
+  testTriumphBtn.addEventListener('click', () => {
+    playTriumphSound()
+  })
+}
+
+if (testBuzzerBtn) {
+  testBuzzerBtn.addEventListener('click', () => {
+    playBuzzerSound()
+  })
+}
 
 // Handle pin to top checkbox
 const pinCheckbox = document.getElementById('pin-checkbox')
