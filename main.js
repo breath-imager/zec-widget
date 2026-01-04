@@ -23,7 +23,7 @@ let mainWindow = null
 const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 400,
-    height: 500,
+    height: 180,
     frame: false,
     transparent: false,
     backgroundColor: '#000000',
@@ -302,8 +302,8 @@ function fetchChartDataForPeriod(period) {
         limit = 24 // 24 hours
         break
       case '1W':
-        interval = '1d'
-        limit = 7 // 7 days
+        interval = '4h' // 4-hour intervals for weekly chart (more granular than daily)
+        limit = 42 // 7 days * 24 hours / 4 = 42 data points
         break
       default:
         interval = '1h'
